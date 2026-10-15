@@ -437,7 +437,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
+      <main className="w-full px-4 sm:px-8 py-6 space-y-6">
         {activeModule === 'orders' && (
           <>
             {/* Stat Cards */}
