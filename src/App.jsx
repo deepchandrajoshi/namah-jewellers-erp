@@ -46,7 +46,7 @@ export default function App() {
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showIntakeModal, setShowIntakeModal] = useState(false);
 
-  // Orders loaded dynamically from Google Sheet
+  // Orders State
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [karigarOrders, setKarigarOrders] = useState([]);
@@ -59,32 +59,25 @@ export default function App() {
   const [deskFilter, setDeskFilter] = useState('All');
   const [workTypeFilter, setWorkTypeFilter] = useState('All');
 
-  // Multi-Item Intake Form State
-  const [intakeCustomer, setIntakeCustomer] = useState({
+  // Single Item Intake Form State
+  const [formData, setFormData] = useState({
+    orderSheetNumber: `NJ-2026-${Math.floor(100 + Math.random() * 900)}`,
+    tagNumber: '',
     customerName: '',
     contactNumber: '',
-    orderSheetNumber: `NJ-2026-${Math.floor(100 + Math.random() * 900)}`,
     salesPersonName: 'sohil',
+    jewelleryItem: '',
+    orderType: 'new',
+    goldWeight: '',
+    diamondWeight: '',
+    colorTone: 'Yellow Gold',
+    size: '',
+    purity: '22K',
     orderPersonName: 'amardeep',
     orderTakenDate: new Date().toISOString().split('T')[0],
     deliveryDate: '',
     specialRemarks: ''
   });
-
-  const [itemsList, setItemsList] = useState([
-    {
-      id: Date.now(),
-      orderType: 'new',
-      jewelleryItem: '',
-      tagNumber: '',
-      goldWeight: '',
-      diamondWeight: '',
-      colorTone: 'Yellow Gold',
-      size: '',
-      purity: '22K',
-      orderDescription: ''
-    }
-  ]);
 
   const [karigarForm, setKarigarForm] = useState({
     karigarName: '',
@@ -93,16 +86,17 @@ export default function App() {
     karigarDod: ''
   });
 
-  const [imagePreviewMap, setImagePreviewMap] = useState({});
-  const [imageBase64Map, setImageBase64Map] = useState({});
-  const [activeCapturingItemId, setActiveCapturingItemId] = useState(null);
+  // Camera & Image Handlers
+  const [imagePreview, setImagePreview] = useState(null);
+  const [imageBase64, setImageBase64] = useState(null);
+  const [isCapturing, setIsCapturing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // FETCH LIVE DATA FROM GOOGLE SHEET ON APP LOAD
+  // Fetch Live Data from Google Sheet
   const fetchOrdersFromSheet = async () => {
     if (!googleScriptUrl) return;
     setIsLoading(true);
@@ -123,19 +117,19 @@ export default function App() {
     fetchOrdersFromSheet();
   }, [googleScriptUrl]);
 
-  // Camera Actions
-  const startCamera = async (itemId) => {
-    setActiveCapturingItemId(itemId);
+  // Camera Functions
+  const startCamera = async () => {
+    setIsCapturing(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
       if (videoRef.current) videoRef.current.srcObject = stream;
     } catch (err) {
       alert("Unable to access camera on this device.");
-      setActiveCapturingItemId(null);
+      setIsCapturing(false);
     }
   };
 
-  const capturePhoto = (itemId) => {
+  const capturePhoto = () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (video && canvas) {
@@ -145,116 +139,76 @@ export default function App() {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const dataUrl = canvas.toDataURL('image/jpeg');
 
-      setImagePreviewMap(prev => ({ ...prev, [itemId]: dataUrl }));
-      setImageBase64Map(prev => ({ ...prev, [itemId]: dataUrl }));
+      setImagePreview(dataUrl);
+      setImageBase64(dataUrl);
 
       const stream = video.srcObject;
       if (stream) stream.getTracks().forEach(track => track.stop());
-      setActiveCapturingItemId(null);
+      setIsCapturing(false);
     }
   };
 
-  const handleFileChange = (itemId, e) => {
+  const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setImagePreviewMap(prev => ({ ...prev, [itemId]: reader.result }));
-        setImageBase64Map(prev => ({ ...prev, [itemId]: reader.result }));
+        setImagePreview(reader.result);
+        setImageBase64(reader.result);
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleAddItem = () => {
-    setItemsList([
-      ...itemsList,
-      {
-        id: Date.now() + Math.random(),
-        orderType: 'new',
-        jewelleryItem: '',
-        tagNumber: '',
-        goldWeight: '',
-        diamondWeight: '',
-        colorTone: 'Yellow Gold',
-        size: '',
-        purity: '22K',
-        orderDescription: ''
-      }
-    ]);
-  };
-
-  const handleRemoveItem = (id) => {
-    if (itemsList.length === 1) return;
-    setItemsList(itemsList.filter(i => i.id !== id));
-  };
-
-  const handleItemChange = (id, field, value) => {
-    setItemsList(itemsList.map(i => i.id === id ? { ...i, [field]: value } : i));
-  };
-
-  // Submit Intake Form directly to Google Sheet
-  const handleSubmitIntake = async (e) => {
+  // Submit Order directly to Google Sheet
+  const handleSubmitOrder = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    for (let i = 0; i < itemsList.length; i++) {
-      const item = itemsList[i];
-      const letterSuffix = String.fromCharCode(65 + i);
-
-      if (googleScriptUrl) {
-        try {
-          const payload = {
-            action: "NEW_ORDER",
-            ...intakeCustomer,
-            ...item,
-            itemSubCode: `${intakeCustomer.orderSheetNumber}-${letterSuffix}`,
-            imageBase64: imageBase64Map[item.id] || "",
-            imageName: `Jewel_${Date.now()}_${i}.jpg`,
-            imageMimeType: 'image/jpeg'
-          };
-          await fetch(googleScriptUrl, { 
-            method: 'POST', 
-            body: JSON.stringify(payload) 
-          });
-        } catch (err) {
-          console.error("Sync error:", err);
-        }
+    if (googleScriptUrl) {
+      try {
+        const payload = {
+          action: "NEW_ORDER",
+          ...formData,
+          imageBase64: imageBase64 || "",
+          imageName: `Jewel_${Date.now()}.jpg`,
+          imageMimeType: 'image/jpeg'
+        };
+        await fetch(googleScriptUrl, { 
+          method: 'POST', 
+          body: JSON.stringify(payload) 
+        });
+      } catch (err) {
+        console.error("Sync error:", err);
       }
     }
 
     setIsSubmitting(false);
     setShowIntakeModal(false);
-    alert(`${itemsList.length} item(s) logged to Google Sheet!`);
+    alert(`Order logged for Tag #${formData.tagNumber || 'PENDING'}!`);
     fetchOrdersFromSheet(); // Reload live data
 
     // Reset Form
-    setImagePreviewMap({});
-    setImageBase64Map({});
-    setIntakeCustomer({
+    setImagePreview(null);
+    setImageBase64(null);
+    setFormData({
+      orderSheetNumber: `NJ-2026-${Math.floor(100 + Math.random() * 900)}`,
+      tagNumber: '',
       customerName: '',
       contactNumber: '',
-      orderSheetNumber: `NJ-2026-${Math.floor(100 + Math.random() * 900)}`,
       salesPersonName: 'sohil',
+      jewelleryItem: '',
+      orderType: 'new',
+      goldWeight: '',
+      diamondWeight: '',
+      colorTone: 'Yellow Gold',
+      size: '',
+      purity: '22K',
       orderPersonName: 'amardeep',
       orderTakenDate: new Date().toISOString().split('T')[0],
       deliveryDate: '',
       specialRemarks: ''
     });
-    setItemsList([
-      {
-        id: Date.now(),
-        orderType: 'new',
-        jewelleryItem: '',
-        tagNumber: '',
-        goldWeight: '',
-        diamondWeight: '',
-        colorTone: 'Yellow Gold',
-        size: '',
-        purity: '22K',
-        orderDescription: ''
-      }
-    ]);
   };
 
   // Karigar Assignment
@@ -302,9 +256,8 @@ export default function App() {
       const matchCust = (o.customerName || '').toLowerCase().includes(q);
       const matchTag = (o.tagNumber || '').toLowerCase().includes(q);
       const matchSheet = (o.orderSheetNumber || '').toLowerCase().includes(q);
-      const matchSub = (o.itemSubCode || '').toLowerCase().includes(q);
       const matchItem = (o.jewelleryItem || '').toLowerCase().includes(q);
-      if (!matchCust && !matchTag && !matchSheet && !matchSub && !matchItem) return false;
+      if (!matchCust && !matchTag && !matchSheet && !matchItem) return false;
     }
 
     if (salesFilter !== 'All' && (o.salesPersonName || '').toLowerCase() !== salesFilter.toLowerCase()) return false;
@@ -495,7 +448,7 @@ export default function App() {
                   onClick={() => setShowIntakeModal(true)}
                   className="px-5 py-2 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-600 hover:to-yellow-500 text-slate-950 font-black rounded-xl text-xs flex items-center gap-2 shadow-lg transition"
                 >
-                  <PlusCircle className="w-4 h-4" /> + New Sales Intake
+                  <PlusCircle className="w-4 h-4" /> + New Item Intake
                 </button>
               </div>
 
@@ -505,7 +458,7 @@ export default function App() {
                   <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
                   <input 
                     type="text" 
-                    placeholder="Search customer, sheet #, tag, or item..."
+                    placeholder="Search Tag Number, customer, sheet #, or item..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full bg-[#0b0f19] border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 outline-none focus:border-amber-500 font-mono"
@@ -538,7 +491,7 @@ export default function App() {
                     <thead>
                       <tr className="bg-[#0b0f19] text-amber-400 border-b border-slate-800 text-[11px] font-mono tracking-wider uppercase">
                         <th className="p-4 w-20">Image</th>
-                        <th className="p-4">Sheet & Item Code</th>
+                        <th className="p-4">Tag # / Order Sheet</th>
                         <th className="p-4">Customer & Sales</th>
                         <th className="p-4">Jewellery Specs</th>
                         <th className="p-4">Order Executive</th>
@@ -551,12 +504,12 @@ export default function App() {
                       {isLoading ? (
                         <tr>
                           <td colSpan="8" className="text-center py-12 text-amber-400 font-mono">
-                            Loading live orders from Google Sheet...
+                            Loading items from Google Sheet...
                           </td>
                         </tr>
                       ) : filteredOrders.length === 0 ? (
                         <tr>
-                          <td colSpan="8" className="text-center py-12 text-slate-500 font-medium">No items found in your Google Sheet matching the criteria.</td>
+                          <td colSpan="8" className="text-center py-12 text-slate-500 font-medium">No items found matching the filter.</td>
                         </tr>
                       ) : (
                         filteredOrders.map((ord) => {
@@ -574,9 +527,8 @@ export default function App() {
                               </td>
 
                               <td className="p-4 space-y-1">
-                                <div className="font-mono font-black text-amber-400 text-sm">{ord.orderSheetNumber}</div>
-                                <div className="text-[11px] text-amber-300/80 font-mono font-bold">{ord.itemSubCode || ord.orderSheetNumber}</div>
-                                <div className="text-[10px] text-slate-400 font-mono">{ord.tagNumber || 'TAG-PENDING'}</div>
+                                <div className="font-mono font-black text-amber-300 text-sm">{ord.tagNumber || 'TAG-PENDING'}</div>
+                                <div className="text-[11px] text-slate-400 font-mono font-bold">{ord.orderSheetNumber}</div>
                                 <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30">
                                   {ord.orderType}
                                 </span>
@@ -678,8 +630,8 @@ export default function App() {
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-[#0b0f19] text-amber-300 border-b border-slate-800">
+                        <th className="p-3">Tag Number</th>
                         <th className="p-3">Order Sheet</th>
-                        <th className="p-3">Item Code</th>
                         <th className="p-3">Customer</th>
                         <th className="p-3">Jewellery Item</th>
                         <th className="p-3">Assigned Karigar</th>
@@ -689,8 +641,8 @@ export default function App() {
                     <tbody className="divide-y divide-slate-800 font-sans">
                       {karigarOrders.map((k, idx) => (
                         <tr key={idx} className="hover:bg-slate-800/30">
+                          <td className="p-3 font-mono text-amber-300 font-bold">{k.tagNumber || '-'}</td>
                           <td className="p-3 font-mono text-amber-400 font-bold">{k.orderSheetNumber}</td>
-                          <td className="p-3 font-mono text-amber-300">{k.itemSubCode}</td>
                           <td className="p-3 font-semibold">{k.customerName}</td>
                           <td className="p-3">{k.jewelleryItem}</td>
                           <td className="p-3 font-bold text-emerald-400">{k.karigarName}</td>
@@ -705,128 +657,108 @@ export default function App() {
           </>
         )}
 
-        {/* Multi-Item Sales Intake Modal */}
+        {/* Single Item Sales Intake Modal */}
         {showIntakeModal && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
-            <div className="bg-[#111827] border border-amber-500/40 rounded-2xl p-6 max-w-4xl w-full my-8 space-y-6 shadow-2xl">
+            <div className="bg-[#111827] border border-amber-500/40 rounded-2xl p-6 max-w-3xl w-full my-8 space-y-6 shadow-2xl">
               <div className="flex justify-between items-center border-b border-slate-800 pb-3">
                 <div>
-                  <h3 className="text-base font-bold text-amber-400 font-serif">New Sales Order Intake</h3>
-                  <p className="text-xs text-slate-400">Log single or multiple items to Google Sheet</p>
+                  <h3 className="text-base font-bold text-amber-400 font-serif">New Item Sales Intake</h3>
+                  <p className="text-xs text-slate-400">Log an individual item entry directly to Google Sheet</p>
                 </div>
                 <button onClick={() => setShowIntakeModal(false)} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
               </div>
 
-              <form onSubmit={handleSubmitIntake} className="space-y-6">
-                <div className="bg-[#0b0f19] p-4 rounded-xl border border-slate-800 space-y-3">
-                  <h4 className="text-xs font-bold text-amber-300 uppercase font-mono">Master Order Header</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                    <div>
-                      <label className="text-[11px] text-slate-400 font-semibold">Customer Name *</label>
-                      <input required type="text" value={intakeCustomer.customerName} onChange={(e) => setIntakeCustomer({...intakeCustomer, customerName: e.target.value})} className="w-full mt-1 bg-[#111827] border border-slate-800 rounded-lg p-2 text-xs text-slate-200 outline-none focus:border-amber-500" />
+              <form onSubmit={handleSubmitOrder} className="space-y-6">
+                {/* Photo Section */}
+                <div className="text-center bg-[#0b0f19] p-4 rounded-xl border border-slate-800 space-y-3">
+                  <label className="text-xs font-semibold text-amber-300 block">Product Photo (Saved to Google Drive)</label>
+                  {isCapturing ? (
+                    <div className="space-y-2">
+                      <video ref={videoRef} autoPlay playsInline className="w-full max-w-xs mx-auto h-36 bg-black rounded object-cover" />
+                      <canvas ref={canvasRef} className="hidden" />
+                      <button type="button" onClick={capturePhoto} className="bg-emerald-500 text-slate-950 font-bold px-3 py-1 rounded text-xs">
+                        Snap Photo
+                      </button>
                     </div>
-                    <div>
-                      <label className="text-[11px] text-slate-400 font-semibold">Contact Number *</label>
-                      <input required type="tel" value={intakeCustomer.contactNumber} onChange={(e) => setIntakeCustomer({...intakeCustomer, contactNumber: e.target.value})} className="w-full mt-1 bg-[#111827] border border-slate-800 rounded-lg p-2 text-xs text-slate-200 outline-none focus:border-amber-500" />
+                  ) : imagePreview ? (
+                    <div className="space-y-1">
+                      <img src={imagePreview} alt="Preview" className="w-24 h-24 mx-auto object-cover rounded-xl border-2 border-amber-500" />
+                      <button type="button" onClick={() => setImagePreview(null)} className="text-[10px] text-red-400 underline">Remove Photo</button>
                     </div>
-                    <div>
-                      <label className="text-[11px] text-slate-400 font-semibold">Order Sheet Number *</label>
-                      <input required type="text" value={intakeCustomer.orderSheetNumber} onChange={(e) => setIntakeCustomer({...intakeCustomer, orderSheetNumber: e.target.value})} className="w-full mt-1 bg-[#111827] border border-slate-800 rounded-lg p-2 text-xs text-amber-400 font-mono font-bold outline-none focus:border-amber-500" />
+                  ) : (
+                    <div className="flex justify-center gap-3">
+                      <button type="button" onClick={startCamera} className="bg-amber-500/10 text-amber-300 border border-amber-500/30 px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2">
+                        <Camera className="w-4 h-4" /> Snap Photo
+                      </button>
+                      <button type="button" onClick={() => fileInputRef.current.click()} className="bg-slate-800 text-slate-200 px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2">
+                        <Upload className="w-4 h-4" /> Upload File
+                      </button>
+                      <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
                     </div>
-                    <div>
-                      <label className="text-[11px] text-slate-400 font-semibold">Sales Person *</label>
-                      <select value={intakeCustomer.salesPersonName} onChange={(e) => setIntakeCustomer({...intakeCustomer, salesPersonName: e.target.value})} className="w-full mt-1 bg-[#111827] border border-slate-800 rounded-lg p-2 text-xs text-slate-200 capitalize outline-none focus:border-amber-500">
-                        {SALES_PERSONS.map(sp => <option key={sp} value={sp}>{sp}</option>)}
-                      </select>
-                    </div>
-                  </div>
+                  )}
                 </div>
 
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h4 className="text-xs font-bold text-slate-300 uppercase font-mono">Ordered Items ({itemsList.length})</h4>
-                    <button type="button" onClick={handleAddItem} className="text-xs text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1">
-                      <PlusCircle className="w-3.5 h-3.5" /> + Add Another Item
-                    </button>
+                {/* Main Item Intake Fields */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-[11px] text-slate-400 font-semibold">Tag Number *</label>
+                    <input required type="text" placeholder="e.g. TAG-101" value={formData.tagNumber} onChange={(e) => setFormData({...formData, tagNumber: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-amber-300 font-mono font-bold outline-none focus:border-amber-500" />
                   </div>
-
-                  {itemsList.map((item, index) => {
-                    const subLetter = String.fromCharCode(65 + index);
-                    return (
-                      <div key={item.id} className="bg-[#0b0f19] p-4 rounded-xl border border-slate-800 space-y-4 relative">
-                        <div className="flex justify-between items-center border-b border-slate-800/80 pb-2">
-                          <span className="text-xs font-mono font-bold text-amber-400">
-                            Item #{index + 1} ({intakeCustomer.orderSheetNumber}-{subLetter})
-                          </span>
-                          {itemsList.length > 1 && (
-                            <button type="button" onClick={() => handleRemoveItem(item.id)} className="text-xs text-red-400 hover:underline">
-                              Remove Item
-                            </button>
-                          )}
-                        </div>
-
-                        <div className="text-center bg-[#111827] p-3 rounded-lg border border-slate-800">
-                          {activeCapturingItemId === item.id ? (
-                            <div className="space-y-2">
-                              <video ref={videoRef} autoPlay playsInline className="w-full max-w-xs mx-auto h-36 bg-black rounded object-cover" />
-                              <canvas ref={canvasRef} className="hidden" />
-                              <button type="button" onClick={() => capturePhoto(item.id)} className="bg-emerald-500 text-slate-950 font-bold px-3 py-1 rounded text-xs">
-                                Snap Photo
-                              </button>
-                            </div>
-                          ) : imagePreviewMap[item.id] ? (
-                            <div className="space-y-1">
-                              <img src={imagePreviewMap[item.id]} alt="Preview" className="w-20 h-20 mx-auto object-cover rounded border border-amber-500" />
-                              <button type="button" onClick={() => setImagePreviewMap(prev => ({...prev, [item.id]: null}))} className="text-[10px] text-red-400 underline">Remove Photo</button>
-                            </div>
-                          ) : (
-                            <div className="flex justify-center gap-2">
-                              <button type="button" onClick={() => startCamera(item.id)} className="bg-amber-500/10 text-amber-300 border border-amber-500/30 px-3 py-1.5 rounded text-xs flex items-center gap-1">
-                                <Camera className="w-3.5 h-3.5" /> Camera
-                              </button>
-                              <button type="button" onClick={() => fileInputRef.current.click()} className="bg-slate-800 text-slate-200 px-3 py-1.5 rounded text-xs flex items-center gap-1">
-                                <Upload className="w-3.5 h-3.5" /> Upload File
-                              </button>
-                              <input type="file" ref={fileInputRef} onChange={(e) => handleFileChange(item.id, e)} accept="image/*" className="hidden" />
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          <div>
-                            <label className="text-[11px] text-slate-400 font-semibold">Jewellery Item *</label>
-                            <input required placeholder="e.g. Ring / Necklace" type="text" value={item.jewelleryItem} onChange={(e) => handleItemChange(item.id, 'jewelleryItem', e.target.value)} className="w-full mt-1 bg-[#111827] border border-slate-800 rounded p-2 text-xs text-slate-200 outline-none" />
-                          </div>
-                          <div>
-                            <label className="text-[11px] text-slate-400 font-semibold">Order Type *</label>
-                            <select value={item.orderType} onChange={(e) => handleItemChange(item.id, 'orderType', e.target.value)} className="w-full mt-1 bg-[#111827] border border-slate-800 rounded p-2 text-xs text-amber-300 uppercase font-bold outline-none">
-                              {WORK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="text-[11px] text-slate-400 font-semibold">Tag Number</label>
-                            <input type="text" placeholder="TAG-101" value={item.tagNumber} onChange={(e) => handleItemChange(item.id, 'tagNumber', e.target.value)} className="w-full mt-1 bg-[#111827] border border-slate-800 rounded p-2 text-xs text-slate-200 outline-none" />
-                          </div>
-                          <div>
-                            <label className="text-[11px] text-slate-400 font-semibold">Gold Weight (gms)</label>
-                            <input type="text" placeholder="12.5" value={item.goldWeight} onChange={(e) => handleItemChange(item.id, 'goldWeight', e.target.value)} className="w-full mt-1 bg-[#111827] border border-slate-800 rounded p-2 text-xs text-slate-200 outline-none" />
-                          </div>
-                          <div>
-                            <label className="text-[11px] text-slate-400 font-semibold">Diamond Weight (cts)</label>
-                            <input type="text" placeholder="0.5" value={item.diamondWeight} onChange={(e) => handleItemChange(item.id, 'diamondWeight', e.target.value)} className="w-full mt-1 bg-[#111827] border border-slate-800 rounded p-2 text-xs text-slate-200 outline-none" />
-                          </div>
-                          <div>
-                            <label className="text-[11px] text-slate-400 font-semibold">Color Tone</label>
-                            <input type="text" placeholder="Yellow Gold" value={item.colorTone} onChange={(e) => handleItemChange(item.id, 'colorTone', e.target.value)} className="w-full mt-1 bg-[#111827] border border-slate-800 rounded p-2 text-xs text-slate-200 outline-none" />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  <div>
+                    <label className="text-[11px] text-slate-400 font-semibold">Order Sheet Number *</label>
+                    <input required type="text" value={formData.orderSheetNumber} onChange={(e) => setFormData({...formData, orderSheetNumber: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-amber-400 font-mono font-bold outline-none focus:border-amber-500" />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 font-semibold">Customer Name *</label>
+                    <input required type="text" value={formData.customerName} onChange={(e) => setFormData({...formData, customerName: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-slate-200 outline-none focus:border-amber-500" />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 font-semibold">Contact Number *</label>
+                    <input required type="tel" value={formData.contactNumber} onChange={(e) => setFormData({...formData, contactNumber: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-slate-200 outline-none focus:border-amber-500" />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 font-semibold">Sales Person *</label>
+                    <select value={formData.salesPersonName} onChange={(e) => setFormData({...formData, salesPersonName: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-slate-200 capitalize outline-none focus:border-amber-500">
+                      {SALES_PERSONS.map(sp => <option key={sp} value={sp}>{sp}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 font-semibold">Jewellery Item *</label>
+                    <input required placeholder="e.g. Ring / Gold Bangle" type="text" value={formData.jewelleryItem} onChange={(e) => setFormData({...formData, jewelleryItem: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-slate-200 outline-none focus:border-amber-500" />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 font-semibold">Order Type *</label>
+                    <select value={formData.orderType} onChange={(e) => setFormData({...formData, orderType: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-amber-300 uppercase font-bold outline-none">
+                      {WORK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 font-semibold">Gold Weight (gms)</label>
+                    <input type="text" placeholder="12.5" value={formData.goldWeight} onChange={(e) => setFormData({...formData, goldWeight: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-slate-200 outline-none focus:border-amber-500" />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 font-semibold">Diamond Weight (cts)</label>
+                    <input type="text" placeholder="0.5" value={formData.diamondWeight} onChange={(e) => setFormData({...formData, diamondWeight: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-slate-200 outline-none focus:border-amber-500" />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 font-semibold">Color Tone</label>
+                    <input type="text" placeholder="Yellow Gold" value={formData.colorTone} onChange={(e) => setFormData({...formData, colorTone: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-slate-200 outline-none focus:border-amber-500" />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 font-semibold">Size</label>
+                    <input type="text" placeholder="2.4" value={formData.size} onChange={(e) => setFormData({...formData, size: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-slate-200 outline-none focus:border-amber-500" />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 font-semibold">Order Executive *</label>
+                    <select value={formData.orderPersonName} onChange={(e) => setFormData({...formData, orderPersonName: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-slate-200 capitalize outline-none focus:border-amber-500">
+                      {ORDERS_PERSONS.map(op => <option key={op} value={op}>{op}</option>)}
+                    </select>
+                  </div>
                 </div>
 
                 <button type="submit" disabled={isSubmitting} className="w-full py-3 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-bold rounded-xl text-xs shadow-lg">
-                  {isSubmitting ? "Saving to Sheet..." : `Save All Items (${itemsList.length}) to Sheet`}
+                  {isSubmitting ? "Saving to Sheet..." : "Save Item to Google Sheet"}
                 </button>
               </form>
             </div>
@@ -865,8 +797,8 @@ export default function App() {
               </div>
 
               <div className="bg-[#0b0f19] p-3 rounded-lg text-xs space-y-1 font-mono text-slate-300 border border-slate-800">
+                <p><span className="text-slate-500">Tag #:</span> {selectedOrderForKarigar.tagNumber || 'PENDING'}</p>
                 <p><span className="text-slate-500">Sheet #:</span> {selectedOrderForKarigar.orderSheetNumber}</p>
-                <p><span className="text-slate-500">Item Code:</span> {selectedOrderForKarigar.itemSubCode}</p>
                 <p><span className="text-slate-500">Customer:</span> {selectedOrderForKarigar.customerName}</p>
                 <p><span className="text-slate-500">Item:</span> {selectedOrderForKarigar.jewelleryItem}</p>
               </div>
