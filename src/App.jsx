@@ -59,7 +59,7 @@ export default function App() {
   const [deskFilter, setDeskFilter] = useState('All');
   const [workTypeFilter, setWorkTypeFilter] = useState('All');
 
-  // Single Item Intake Form State
+  // Complete Form Data State
   const [formData, setFormData] = useState({
     orderSheetNumber: `NJ-2026-${Math.floor(100 + Math.random() * 900)}`,
     tagNumber: '',
@@ -67,16 +67,16 @@ export default function App() {
     contactNumber: '',
     salesPersonName: 'sohil',
     jewelleryItem: '',
-    orderType: 'new',
     goldWeight: '',
     diamondWeight: '',
     colorTone: 'Yellow Gold',
     size: '',
     purity: '22K',
-    orderPersonName: 'amardeep',
+    orderDescription: '',
     orderTakenDate: new Date().toISOString().split('T')[0],
     deliveryDate: '',
-    specialRemarks: ''
+    orderPersonName: 'amardeep',
+    orderType: 'new'
   });
 
   const [karigarForm, setKarigarForm] = useState({
@@ -186,7 +186,7 @@ export default function App() {
     setIsSubmitting(false);
     setShowIntakeModal(false);
     alert(`Order logged for Tag #${formData.tagNumber || 'PENDING'}!`);
-    fetchOrdersFromSheet(); // Reload live data
+    fetchOrdersFromSheet();
 
     // Reset Form
     setImagePreview(null);
@@ -198,16 +198,16 @@ export default function App() {
       contactNumber: '',
       salesPersonName: 'sohil',
       jewelleryItem: '',
-      orderType: 'new',
       goldWeight: '',
       diamondWeight: '',
       colorTone: 'Yellow Gold',
       size: '',
       purity: '22K',
-      orderPersonName: 'amardeep',
+      orderDescription: '',
       orderTakenDate: new Date().toISOString().split('T')[0],
       deliveryDate: '',
-      specialRemarks: ''
+      orderPersonName: 'amardeep',
+      orderType: 'new'
     });
   };
 
@@ -491,10 +491,11 @@ export default function App() {
                     <thead>
                       <tr className="bg-[#0b0f19] text-amber-400 border-b border-slate-800 text-[11px] font-mono tracking-wider uppercase">
                         <th className="p-4 w-20">Image</th>
-                        <th className="p-4">Tag # / Order Sheet</th>
-                        <th className="p-4">Customer & Sales</th>
-                        <th className="p-4">Jewellery Specs</th>
-                        <th className="p-4">Order Executive</th>
+                        <th className="p-4">Tag # / Sheet</th>
+                        <th className="p-4">Customer & Dates</th>
+                        <th className="p-4">Jewellery Specs & Purity</th>
+                        <th className="p-4">Description</th>
+                        <th className="p-4">Order Exec</th>
                         <th className="p-4">Place Order ➔</th>
                         <th className="p-4 text-center">ON/OFF</th>
                         <th className="p-4">Product Status</th>
@@ -503,13 +504,13 @@ export default function App() {
                     <tbody className="divide-y divide-slate-800/80 font-sans">
                       {isLoading ? (
                         <tr>
-                          <td colSpan="8" className="text-center py-12 text-amber-400 font-mono">
+                          <td colSpan="9" className="text-center py-12 text-amber-400 font-mono">
                             Loading items from Google Sheet...
                           </td>
                         </tr>
                       ) : filteredOrders.length === 0 ? (
                         <tr>
-                          <td colSpan="8" className="text-center py-12 text-slate-500 font-medium">No items found matching the filter.</td>
+                          <td colSpan="9" className="text-center py-12 text-slate-500 font-medium">No items found matching the filter.</td>
                         </tr>
                       ) : (
                         filteredOrders.map((ord) => {
@@ -537,15 +538,20 @@ export default function App() {
                               <td className="p-4 space-y-1">
                                 <div className="font-bold text-slate-100 text-sm">{ord.customerName}</div>
                                 <div className="text-[11px] text-slate-400 font-mono">{ord.contactNumber}</div>
-                                <div className="text-[11px] text-amber-400/90 font-medium capitalize">Sales: {ord.salesPersonName}</div>
+                                <div className="text-[10px] text-amber-400/90 font-mono">Taken: {ord.orderTakenDate || '-'}</div>
+                                <div className="text-[10px] text-emerald-400 font-mono">DOD: {ord.deliveryDate || '-'}</div>
                               </td>
 
                               <td className="p-4 space-y-0.5 font-mono text-[11px]">
-                                <div className="font-bold text-slate-200 text-xs">{ord.jewelleryItem}</div>
+                                <div className="font-bold text-slate-200 text-xs">{ord.jewelleryItem} ({ord.purity || '22K'})</div>
                                 <div className="text-slate-400">
                                   Gold: <span className="text-amber-300 font-bold">{ord.goldWeight}g</span> | Dia: <span className="text-amber-300 font-bold">{ord.diamondWeight}ct</span>
                                 </div>
                                 <div className="text-slate-400">{ord.colorTone} | Size: {ord.size || '-'}</div>
+                              </td>
+
+                              <td className="p-4 text-xs text-slate-300 max-w-xs truncate">
+                                {ord.orderDescription || '-'}
                               </td>
 
                               <td className="p-4">
@@ -660,7 +666,7 @@ export default function App() {
         {/* Single Item Sales Intake Modal */}
         {showIntakeModal && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
-            <div className="bg-[#111827] border border-amber-500/40 rounded-2xl p-6 max-w-3xl w-full my-8 space-y-6 shadow-2xl">
+            <div className="bg-[#111827] border border-amber-500/40 rounded-2xl p-6 max-w-4xl w-full my-8 space-y-6 shadow-2xl">
               <div className="flex justify-between items-center border-b border-slate-800 pb-3">
                 <div>
                   <h3 className="text-base font-bold text-amber-400 font-serif">New Item Sales Intake</h3>
@@ -700,14 +706,14 @@ export default function App() {
                 </div>
 
                 {/* Main Item Intake Fields */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                  <div>
-                    <label className="text-[11px] text-slate-400 font-semibold">Tag Number *</label>
-                    <input required type="text" placeholder="e.g. TAG-101" value={formData.tagNumber} onChange={(e) => setFormData({...formData, tagNumber: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-amber-300 font-mono font-bold outline-none focus:border-amber-500" />
-                  </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                   <div>
                     <label className="text-[11px] text-slate-400 font-semibold">Order Sheet Number *</label>
                     <input required type="text" value={formData.orderSheetNumber} onChange={(e) => setFormData({...formData, orderSheetNumber: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-amber-400 font-mono font-bold outline-none focus:border-amber-500" />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 font-semibold">Tag Number *</label>
+                    <input required type="text" placeholder="e.g. TAG-101" value={formData.tagNumber} onChange={(e) => setFormData({...formData, tagNumber: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-amber-300 font-mono font-bold outline-none focus:border-amber-500" />
                   </div>
                   <div>
                     <label className="text-[11px] text-slate-400 font-semibold">Customer Name *</label>
@@ -725,13 +731,7 @@ export default function App() {
                   </div>
                   <div>
                     <label className="text-[11px] text-slate-400 font-semibold">Jewellery Item *</label>
-                    <input required placeholder="e.g. Ring / Gold Bangle" type="text" value={formData.jewelleryItem} onChange={(e) => setFormData({...formData, jewelleryItem: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-slate-200 outline-none focus:border-amber-500" />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-slate-400 font-semibold">Order Type *</label>
-                    <select value={formData.orderType} onChange={(e) => setFormData({...formData, orderType: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-amber-300 uppercase font-bold outline-none">
-                      {WORK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
+                    <input required placeholder="e.g. Gold Ring" type="text" value={formData.jewelleryItem} onChange={(e) => setFormData({...formData, jewelleryItem: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-slate-200 outline-none focus:border-amber-500" />
                   </div>
                   <div>
                     <label className="text-[11px] text-slate-400 font-semibold">Gold Weight (gms)</label>
@@ -750,11 +750,34 @@ export default function App() {
                     <input type="text" placeholder="2.4" value={formData.size} onChange={(e) => setFormData({...formData, size: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-slate-200 outline-none focus:border-amber-500" />
                   </div>
                   <div>
+                    <label className="text-[11px] text-slate-400 font-semibold">Purity</label>
+                    <input type="text" placeholder="22K" value={formData.purity} onChange={(e) => setFormData({...formData, purity: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-amber-300 font-bold outline-none focus:border-amber-500" />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 font-semibold">Order Taken Date</label>
+                    <input type="date" value={formData.orderTakenDate} onChange={(e) => setFormData({...formData, orderTakenDate: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-slate-200 outline-none focus:border-amber-500" />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 font-semibold">Delivery Date (DOD)</label>
+                    <input type="date" value={formData.deliveryDate} onChange={(e) => setFormData({...formData, deliveryDate: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-slate-200 outline-none focus:border-amber-500" />
+                  </div>
+                  <div>
                     <label className="text-[11px] text-slate-400 font-semibold">Order Executive *</label>
                     <select value={formData.orderPersonName} onChange={(e) => setFormData({...formData, orderPersonName: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-slate-200 capitalize outline-none focus:border-amber-500">
                       {ORDERS_PERSONS.map(op => <option key={op} value={op}>{op}</option>)}
                     </select>
                   </div>
+                  <div>
+                    <label className="text-[11px] text-slate-400 font-semibold">Order Type *</label>
+                    <select value={formData.orderType} onChange={(e) => setFormData({...formData, orderType: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-amber-300 uppercase font-bold outline-none">
+                      {WORK_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] text-slate-400 font-semibold">Order Description / Design Remarks</label>
+                  <textarea rows="2" placeholder="Enter special customization instructions..." value={formData.orderDescription} onChange={(e) => setFormData({...formData, orderDescription: e.target.value})} className="w-full mt-1 bg-[#0b0f19] border border-slate-800 rounded-lg p-2 text-xs text-slate-200 outline-none focus:border-amber-500" />
                 </div>
 
                 <button type="submit" disabled={isSubmitting} className="w-full py-3 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-bold rounded-xl text-xs shadow-lg">
