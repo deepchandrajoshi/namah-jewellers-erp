@@ -1,25 +1,21 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   PlusCircle, 
   Camera, 
   Upload, 
   CheckCircle, 
   RefreshCw, 
-  Send, 
   ExternalLink, 
-  Calendar, 
   UserCheck, 
   Search, 
   Clock,
   Layers, 
   PackageCheck, 
   PackageSearch, 
-  Download, 
   Settings, 
   ToggleLeft, 
   ToggleRight, 
   X,
-  FileText,
   AlertCircle
 } from 'lucide-react';
 
@@ -39,78 +35,20 @@ const INITIAL_STAFF = [
   { id: 9, name: "Gautam", role: "Orders Person", status: "Present", checkIn: "09:20 AM" },
 ];
 
-const INITIAL_ORDERS = [
-  {
-    id: 1,
-    orderSheetNumber: "NJ-2026-001",
-    itemSubCode: "NJ-2026-001-A",
-    tagNumber: "TAG-8821",
-    orderType: "new",
-    customerName: "Sanjay Agarwal",
-    contactNumber: "+91 98765 12345",
-    salesPersonName: "sohil",
-    jewelleryItem: "Heavy Gold Necklace (22K)",
-    goldWeight: "45.2",
-    diamondWeight: "2.15",
-    colorTone: "Yellow Gold",
-    size: "16 inch",
-    orderPersonName: "amardeep",
-    karigarName: "Craftsman Vijay",
-    onOffStatus: true,
-    productStatus: "Under Process",
-    productImageLink: "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=300&q=80"
-  },
-  {
-    id: 2,
-    orderSheetNumber: "NJ-2026-001",
-    itemSubCode: "NJ-2026-001-B",
-    tagNumber: "TAG-8822",
-    orderType: "new",
-    customerName: "Sanjay Agarwal",
-    contactNumber: "+91 98765 12345",
-    salesPersonName: "sohil",
-    jewelleryItem: "Matching Gold Earrings (22K)",
-    goldWeight: "18.5",
-    diamondWeight: "0.80",
-    colorTone: "Yellow Gold",
-    size: "Standard",
-    orderPersonName: "amardeep",
-    karigarName: "",
-    onOffStatus: false,
-    productStatus: "",
-    productImageLink: "https://images.unsplash.com/photo-1630019852942-f89202989a59?auto=format&fit=crop&w=300&q=80"
-  },
-  {
-    id: 3,
-    orderSheetNumber: "NJ-2026-002",
-    itemSubCode: "NJ-2026-002-A",
-    tagNumber: "TAG-9904",
-    orderType: "customization",
-    customerName: "Pooja Singhania",
-    contactNumber: "+91 98111 22334",
-    salesPersonName: "hema",
-    jewelleryItem: "Diamond Bangle (18K)",
-    goldWeight: "28.0",
-    diamondWeight: "0.80",
-    colorTone: "Rose Gold",
-    size: "2.4",
-    orderPersonName: "gautam",
-    karigarName: "",
-    onOffStatus: false,
-    productStatus: "",
-    productImageLink: "https://images.unsplash.com/photo-1611591475140-be38b638edcd?auto=format&fit=crop&w=300&q=80"
-  }
-];
-
 export default function App() {
   const [activeModule, setActiveModule] = useState('orders');
-  const [activeTab, setActiveTab] = useState('master'); // 'master' | 'notassign' | 'underprocess' | 'ready' | 'packed' | 'karigar'
-  const [googleScriptUrl, setGoogleScriptUrl] = useState('');
+  const [activeTab, setActiveTab] = useState('master');
+  
+  const [googleScriptUrl, setGoogleScriptUrl] = useState(
+    import.meta.env.VITE_GOOGLE_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbwqfcSJkqfRy5O-1_8AjKKhPjASJZJsLOybOC1nQ1MKoRLjNd93Jn0_1pPmeRmFwWoy/exec'
+  );
+
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showIntakeModal, setShowIntakeModal] = useState(false);
 
-  // Orders & Data State
-  const [orders, setOrders] = useState(INITIAL_ORDERS);
+  // Orders loaded dynamically from Google Sheet
+  const [orders, setOrders] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [karigarOrders, setKarigarOrders] = useState([]);
   const [selectedOrderForKarigar, setSelectedOrderForKarigar] = useState(null);
   const [attendance, setAttendance] = useState(INITIAL_STAFF);
@@ -148,7 +86,6 @@ export default function App() {
     }
   ]);
 
-  // Karigar Form State
   const [karigarForm, setKarigarForm] = useState({
     karigarName: '',
     colorStone: '',
@@ -156,7 +93,6 @@ export default function App() {
     karigarDod: ''
   });
 
-  // Camera & Image State
   const [imagePreviewMap, setImagePreviewMap] = useState({});
   const [imageBase64Map, setImageBase64Map] = useState({});
   const [activeCapturingItemId, setActiveCapturingItemId] = useState(null);
@@ -164,15 +100,35 @@ export default function App() {
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  // FETCH LIVE DATA FROM GOOGLE SHEET ON APP LOAD
+  const fetchOrdersFromSheet = async () => {
+    if (!googleScriptUrl) return;
+    setIsLoading(true);
+    try {
+      const res = await fetch(googleScriptUrl);
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setOrders(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch live orders:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrdersFromSheet();
+  }, [googleScriptUrl]);
 
   // Camera Actions
   const startCamera = async (itemId) => {
     setActiveCapturingItemId(itemId);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
+      if (videoRef.current) videoRef.current.srcObject = stream;
     } catch (err) {
       alert("Unable to access camera on this device.");
       setActiveCapturingItemId(null);
@@ -193,9 +149,7 @@ export default function App() {
       setImageBase64Map(prev => ({ ...prev, [itemId]: dataUrl }));
 
       const stream = video.srcObject;
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
+      if (stream) stream.getTracks().forEach(track => track.stop());
       setActiveCapturingItemId(null);
     }
   };
@@ -212,7 +166,6 @@ export default function App() {
     }
   };
 
-  // Add Item to Intake Form
   const handleAddItem = () => {
     setItemsList([
       ...itemsList,
@@ -233,23 +186,21 @@ export default function App() {
 
   const handleRemoveItem = (id) => {
     if (itemsList.length === 1) return;
-    setItemsList(itemsList.filter(item => item.id !== id));
+    setItemsList(itemsList.filter(i => i.id !== id));
   };
 
   const handleItemChange = (id, field, value) => {
-    setItemsList(itemsList.map(item => item.id === id ? { ...item, [field]: value } : item));
+    setItemsList(itemsList.map(i => i.id === id ? { ...i, [field]: value } : i));
   };
 
-  // Submit Intake Form (Saves Multiple Items for Same Order Sheet)
+  // Submit Intake Form directly to Google Sheet
   const handleSubmitIntake = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    const newOrders = [];
-
     for (let i = 0; i < itemsList.length; i++) {
       const item = itemsList[i];
-      let driveLink = imagePreviewMap[item.id] || "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=300&q=80";
+      const letterSuffix = String.fromCharCode(65 + i);
 
       if (googleScriptUrl) {
         try {
@@ -257,49 +208,27 @@ export default function App() {
             action: "NEW_ORDER",
             ...intakeCustomer,
             ...item,
+            itemSubCode: `${intakeCustomer.orderSheetNumber}-${letterSuffix}`,
             imageBase64: imageBase64Map[item.id] || "",
             imageName: `Jewel_${Date.now()}_${i}.jpg`,
             imageMimeType: 'image/jpeg'
           };
-          const res = await fetch(googleScriptUrl, { 
+          await fetch(googleScriptUrl, { 
             method: 'POST', 
             body: JSON.stringify(payload) 
           });
-          const result = await res.json();
-          if (result.imageUrl) {
-            driveLink = result.imageUrl;
-          }
         } catch (err) {
           console.error("Sync error:", err);
         }
       }
-
-      const letterSuffix = String.fromCharCode(65 + i); // A, B, C...
-      newOrders.push({
-        id: Date.now() + i,
-        orderSheetNumber: intakeCustomer.orderSheetNumber,
-        itemSubCode: `${intakeCustomer.orderSheetNumber}-${letterSuffix}`,
-        customerName: intakeCustomer.customerName,
-        contactNumber: intakeCustomer.contactNumber,
-        salesPersonName: intakeCustomer.salesPersonName,
-        orderPersonName: intakeCustomer.orderPersonName,
-        deliveryDate: intakeCustomer.deliveryDate,
-        specialRemarks: intakeCustomer.specialRemarks,
-        ...item,
-        productImageLink: driveLink,
-        karigarName: '',
-        onOffStatus: false,
-        productStatus: '', // "--Not Assign--"
-        orderStatus: 'Need Update'
-      });
     }
 
-    setOrders([...newOrders, ...orders]);
     setIsSubmitting(false);
     setShowIntakeModal(false);
-    alert(`${newOrders.length} item(s) logged under sheet #${intakeCustomer.orderSheetNumber}!`);
+    alert(`${itemsList.length} item(s) logged to Google Sheet!`);
+    fetchOrdersFromSheet(); // Reload live data
 
-    // Reset Intake
+    // Reset Form
     setImagePreviewMap({});
     setImageBase64Map({});
     setIntakeCustomer({
@@ -348,7 +277,6 @@ export default function App() {
     setOrders(updatedOrders);
     setKarigarOrders([{ ...selectedOrderForKarigar, karigarName: karigarForm.karigarName, ...karigarForm }, ...karigarOrders]);
     setSelectedOrderForKarigar(null);
-    alert(`Item ${selectedOrderForKarigar.itemSubCode} assigned to ${karigarForm.karigarName}! Button turned ON & Status set to 'Under Process'.`);
   };
 
   const handleStatusChange = (id, newStatus) => {
@@ -360,7 +288,7 @@ export default function App() {
     setOrders(orders.map(o => o.id === id ? { ...o, onOffStatus: !o.onOffStatus } : o));
   };
 
-  // Tab Filter Logic
+  // Filter Logic
   const filteredOrders = orders.filter(o => {
     const isAssigned = Boolean(o.karigarName);
 
@@ -371,22 +299,21 @@ export default function App() {
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      const matchCust = o.customerName.toLowerCase().includes(q);
+      const matchCust = (o.customerName || '').toLowerCase().includes(q);
       const matchTag = (o.tagNumber || '').toLowerCase().includes(q);
-      const matchSheet = o.orderSheetNumber.toLowerCase().includes(q);
+      const matchSheet = (o.orderSheetNumber || '').toLowerCase().includes(q);
       const matchSub = (o.itemSubCode || '').toLowerCase().includes(q);
-      const matchItem = o.jewelleryItem.toLowerCase().includes(q);
+      const matchItem = (o.jewelleryItem || '').toLowerCase().includes(q);
       if (!matchCust && !matchTag && !matchSheet && !matchSub && !matchItem) return false;
     }
 
-    if (salesFilter !== 'All' && o.salesPersonName.toLowerCase() !== salesFilter.toLowerCase()) return false;
-    if (deskFilter !== 'All' && o.orderPersonName.toLowerCase() !== deskFilter.toLowerCase()) return false;
-    if (workTypeFilter !== 'All' && o.orderType.toLowerCase() !== workTypeFilter.toLowerCase()) return false;
+    if (salesFilter !== 'All' && (o.salesPersonName || '').toLowerCase() !== salesFilter.toLowerCase()) return false;
+    if (deskFilter !== 'All' && (o.orderPersonName || '').toLowerCase() !== deskFilter.toLowerCase()) return false;
+    if (workTypeFilter !== 'All' && (o.orderType || '').toLowerCase() !== workTypeFilter.toLowerCase()) return false;
 
     return true;
   });
 
-  // Counters
   const totalCount = orders.length;
   const notAssignCount = orders.filter(o => !o.karigarName).length;
   const underProcessCount = orders.filter(o => o.productStatus === 'Under Process').length;
@@ -408,6 +335,14 @@ export default function App() {
         </div>
 
         <div className="flex items-center space-x-3 mt-2 sm:mt-0">
+          <button 
+            onClick={fetchOrdersFromSheet}
+            className="p-2 bg-[#1f293d] hover:bg-slate-700 text-amber-400 border border-slate-700 rounded-xl transition flex items-center gap-1.5 text-xs font-bold"
+            title="Refresh Live Sheet Data"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} /> Refresh Sheet
+          </button>
+
           <div className="flex bg-[#1f293d] p-1 rounded-xl border border-slate-700/60">
             <button 
               onClick={() => setActiveModule('orders')}
@@ -430,7 +365,7 @@ export default function App() {
           <button 
             onClick={() => setShowConfigModal(true)}
             className="p-2 bg-[#1f293d] hover:bg-slate-700 text-amber-400 border border-slate-700 rounded-xl transition"
-            title="Configure Apps Script"
+            title="Configure Apps Script Link"
           >
             <Settings className="w-4 h-4" />
           </button>
@@ -613,9 +548,15 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/80 font-sans">
-                      {filteredOrders.length === 0 ? (
+                      {isLoading ? (
                         <tr>
-                          <td colSpan="8" className="text-center py-12 text-slate-500 font-medium">No items found matching the selected filter.</td>
+                          <td colSpan="8" className="text-center py-12 text-amber-400 font-mono">
+                            Loading live orders from Google Sheet...
+                          </td>
+                        </tr>
+                      ) : filteredOrders.length === 0 ? (
+                        <tr>
+                          <td colSpan="8" className="text-center py-12 text-slate-500 font-medium">No items found in your Google Sheet matching the criteria.</td>
                         </tr>
                       ) : (
                         filteredOrders.map((ord) => {
@@ -679,7 +620,6 @@ export default function App() {
                                 )}
                               </td>
 
-                              {/* ON/OFF Toggle */}
                               <td className="p-4 text-center">
                                 <button 
                                   onClick={() => handleToggleOnOff(ord.id, isAssigned)}
@@ -702,7 +642,6 @@ export default function App() {
                                 </button>
                               </td>
 
-                              {/* Product Status */}
                               <td className="p-4">
                                 {isAssigned ? (
                                   <select 
@@ -766,56 +705,6 @@ export default function App() {
           </>
         )}
 
-        {/* Attendance Module */}
-        {activeModule === 'attendance' && (
-          <div className="bg-[#111827] border border-slate-800 rounded-2xl p-6 space-y-6 shadow-xl">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-4">
-              <div>
-                <h2 className="text-base font-bold text-amber-400 font-serif">Staff Attendance Check</h2>
-                <p className="text-xs text-slate-400">Daily check-in logs for Sales Persons & Order Executives</p>
-              </div>
-              <span className="text-xs bg-slate-800 text-amber-300 px-3 py-1 rounded-full font-mono border border-slate-700">
-                Today: {new Date().toLocaleDateString()}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {attendance.map((staff) => (
-                <div key={staff.id} className="bg-[#0b0f19] border border-slate-800 rounded-xl p-4 flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs ${
-                      staff.status === "Present" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-red-500/20 text-red-400 border border-red-500/30"
-                    }`}>
-                      {staff.name[0]}
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-200 capitalize">{staff.name}</h4>
-                      <p className="text-[10px] text-slate-500">{staff.role} • Check-in: {staff.checkIn}</p>
-                    </div>
-                  </div>
-
-                  <button 
-                    onClick={() => {
-                      setAttendance(attendance.map(a => a.id === staff.id ? {
-                        ...a,
-                        status: a.status === 'Present' ? 'Absent' : 'Present',
-                        checkIn: a.status === 'Present' ? '-' : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                      } : a));
-                    }}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
-                      staff.status === "Present" 
-                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" 
-                        : "bg-red-500/10 text-red-400 border-red-500/30"
-                    }`}
-                  >
-                    {staff.status}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Multi-Item Sales Intake Modal */}
         {showIntakeModal && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
@@ -823,13 +712,12 @@ export default function App() {
               <div className="flex justify-between items-center border-b border-slate-800 pb-3">
                 <div>
                   <h3 className="text-base font-bold text-amber-400 font-serif">New Sales Order Intake</h3>
-                  <p className="text-xs text-slate-400">Log single or multiple items for the same order sheet</p>
+                  <p className="text-xs text-slate-400">Log single or multiple items to Google Sheet</p>
                 </div>
                 <button onClick={() => setShowIntakeModal(false)} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
               </div>
 
               <form onSubmit={handleSubmitIntake} className="space-y-6">
-                {/* Header Info (Same Customer / Order Sheet) */}
                 <div className="bg-[#0b0f19] p-4 rounded-xl border border-slate-800 space-y-3">
                   <h4 className="text-xs font-bold text-amber-300 uppercase font-mono">Master Order Header</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
@@ -854,7 +742,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Items List Loop */}
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <h4 className="text-xs font-bold text-slate-300 uppercase font-mono">Ordered Items ({itemsList.length})</h4>
@@ -878,7 +765,6 @@ export default function App() {
                           )}
                         </div>
 
-                        {/* Photo capture for this item */}
                         <div className="text-center bg-[#111827] p-3 rounded-lg border border-slate-800">
                           {activeCapturingItemId === item.id ? (
                             <div className="space-y-2">
@@ -906,7 +792,6 @@ export default function App() {
                           )}
                         </div>
 
-                        {/* Item Spec Fields */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                           <div>
                             <label className="text-[11px] text-slate-400 font-semibold">Jewellery Item *</label>
@@ -941,7 +826,7 @@ export default function App() {
                 </div>
 
                 <button type="submit" disabled={isSubmitting} className="w-full py-3 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-bold rounded-xl text-xs shadow-lg">
-                  {isSubmitting ? "Saving..." : `Save All Items (${itemsList.length}) to Sheet`}
+                  {isSubmitting ? "Saving to Sheet..." : `Save All Items (${itemsList.length}) to Sheet`}
                 </button>
               </form>
             </div>
@@ -963,7 +848,9 @@ export default function App() {
                 onChange={(e) => setGoogleScriptUrl(e.target.value)}
                 className="w-full bg-[#0b0f19] border border-slate-800 rounded-xl p-2.5 text-xs text-amber-200 outline-none font-mono"
               />
-              <button onClick={() => setShowConfigModal(false)} className="w-full py-2.5 bg-amber-500 text-slate-950 font-bold rounded-xl text-xs">Save</button>
+              <button onClick={() => { setShowConfigModal(false); fetchOrdersFromSheet(); }} className="w-full py-2.5 bg-amber-500 text-slate-950 font-bold rounded-xl text-xs">
+                Save & Reload Sheet Data
+              </button>
             </div>
           </div>
         )}
@@ -978,7 +865,7 @@ export default function App() {
               </div>
 
               <div className="bg-[#0b0f19] p-3 rounded-lg text-xs space-y-1 font-mono text-slate-300 border border-slate-800">
-                <p><span className="text-slate-500">Master Sheet #:</span> {selectedOrderForKarigar.orderSheetNumber}</p>
+                <p><span className="text-slate-500">Sheet #:</span> {selectedOrderForKarigar.orderSheetNumber}</p>
                 <p><span className="text-slate-500">Item Code:</span> {selectedOrderForKarigar.itemSubCode}</p>
                 <p><span className="text-slate-500">Customer:</span> {selectedOrderForKarigar.customerName}</p>
                 <p><span className="text-slate-500">Item:</span> {selectedOrderForKarigar.jewelleryItem}</p>
