@@ -242,14 +242,15 @@ export default function App() {
     setOrders(orders.map(o => o.id === id ? { ...o, onOffStatus: !o.onOffStatus } : o));
   };
 
-  // Filter Logic
+  // Filter Logic (Case-Insensitive)
   const filteredOrders = orders.filter(o => {
     const isAssigned = Boolean(o.karigarName);
+    const status = (o.productStatus || '').toLowerCase().trim();
 
     if (activeTab === 'notassign' && isAssigned) return false;
-    if (activeTab === 'underprocess' && o.productStatus !== 'Under Process') return false;
-    if (activeTab === 'ready' && o.productStatus !== 'ready but bill pending') return false;
-    if (activeTab === 'packed' && o.productStatus !== 'packed') return false;
+    if (activeTab === 'underprocess' && status !== 'under process') return false;
+    if (activeTab === 'ready' && status !== 'ready but bill pending') return false;
+    if (activeTab === 'packed' && status !== 'packed') return false;
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -269,9 +270,9 @@ export default function App() {
 
   const totalCount = orders.length;
   const notAssignCount = orders.filter(o => !o.karigarName).length;
-  const underProcessCount = orders.filter(o => o.productStatus === 'Under Process').length;
-  const readyCount = orders.filter(o => o.productStatus === 'ready but bill pending').length;
-  const packedCount = orders.filter(o => o.productStatus === 'packed').length;
+  const underProcessCount = orders.filter(o => (o.productStatus || '').toLowerCase().trim() === 'under process').length;
+  const readyCount = orders.filter(o => (o.productStatus || '').toLowerCase().trim() === 'ready but bill pending').length;
+  const packedCount = orders.filter(o => (o.productStatus || '').toLowerCase().trim() === 'packed').length;
 
   return (
     <div className="min-h-screen bg-[#0b0f19] text-slate-100 font-sans selection:bg-amber-500 selection:text-slate-950">
@@ -515,6 +516,7 @@ export default function App() {
                       ) : (
                         filteredOrders.map((ord) => {
                           const isAssigned = Boolean(ord.karigarName);
+                          const statusLower = (ord.productStatus || '').toLowerCase().trim();
 
                           return (
                             <tr key={ord.id} className="hover:bg-slate-800/30 transition">
@@ -606,14 +608,14 @@ export default function App() {
                                     value={ord.productStatus || 'Under Process'}
                                     onChange={(e) => handleStatusChange(ord.id, e.target.value)}
                                     className={`px-3 py-1.5 rounded-xl text-xs font-bold outline-none border transition ${
-                                      ord.productStatus === 'ready but bill pending' ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40' :
-                                      ord.productStatus === 'packed' ? 'bg-purple-950/80 text-purple-300 border-purple-500/40' :
+                                      statusLower === 'ready but bill pending' ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40' :
+                                      statusLower === 'packed' ? 'bg-purple-950/80 text-purple-300 border-purple-500/40' :
                                       'bg-slate-900 text-amber-300 border-amber-500/40'
                                     }`}
                                   >
                                     <option value="Under Process">Under Process</option>
-                                    <option value="ready but bill pending">Ready but Bill Pending</option>
-                                    <option value="packed">Packed</option>
+                                    <option value="Ready but bill pending">Ready but Bill Pending</option>
+                                    <option value="Packed">Packed</option>
                                   </select>
                                 ) : (
                                   <span className="px-3 py-1.5 rounded-xl text-xs font-semibold text-red-400 bg-red-950/30 border border-red-800/40 inline-block font-mono">
