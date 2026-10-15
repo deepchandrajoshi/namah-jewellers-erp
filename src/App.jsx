@@ -57,7 +57,6 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [salesFilter, setSalesFilter] = useState('All');
   const [deskFilter, setDeskFilter] = useState('All');
-  const [workTypeFilter, setWorkTypeFilter] = useState('All');
 
   // Complete Form Data State
   const [formData, setFormData] = useState({
@@ -116,6 +115,23 @@ export default function App() {
   useEffect(() => {
     fetchOrdersFromSheet();
   }, [googleScriptUrl]);
+
+  // Sync Status Change back to Google Sheet
+  const updateSheetRow = async (rowId, payloadData) => {
+    if (!googleScriptUrl) return;
+    try {
+      await fetch(googleScriptUrl, {
+        method: 'POST',
+        body: JSON.stringify({
+          action: "UPDATE_STATUS",
+          rowId: rowId,
+          ...payloadData
+        })
+      });
+    } catch (err) {
+      console.error("Failed to update Google Sheet row:", err);
+    }
+  };
 
   // Camera Functions
   const startCamera = async () => {
@@ -230,16 +246,30 @@ export default function App() {
 
     setOrders(updatedOrders);
     setKarigarOrders([{ ...selectedOrderForKarigar, karigarName: karigarForm.karigarName, ...karigarForm }, ...karigarOrders]);
+    
+    // Sync to sheet
+    await updateSheetRow(selectedOrderForKarigar.id, {
+      karigarName: karigarForm.karigarName,
+      onOffStatus: true,
+      productStatus: 'Under Process'
+    });
+
     setSelectedOrderForKarigar(null);
   };
 
-  const handleStatusChange = (id, newStatus) => {
+  const handleStatusChange = async (id, newStatus) => {
     setOrders(orders.map(o => o.id === id ? { ...o, productStatus: newStatus } : o));
+    await updateSheetRow(id, { productStatus: newStatus });
   };
 
-  const handleToggleOnOff = (id, isAssigned) => {
+  const handleToggleOnOff = async (id, isAssigned) => {
     if (!isAssigned) return;
-    setOrders(orders.map(o => o.id === id ? { ...o, onOffStatus: !o.onOffStatus } : o));
+    const target = orders.find(o => o.id === id);
+    if (!target) return;
+
+    const newToggleState = !target.onOffStatus;
+    setOrders(orders.map(o => o.id === id ? { ...o, onOffStatus: newToggleState } : o));
+    await updateSheetRow(id, { onOffStatus: newToggleState });
   };
 
   // Filter Logic (Case-Insensitive)
@@ -263,7 +293,6 @@ export default function App() {
 
     if (salesFilter !== 'All' && (o.salesPersonName || '').toLowerCase() !== salesFilter.toLowerCase()) return false;
     if (deskFilter !== 'All' && (o.orderPersonName || '').toLowerCase() !== deskFilter.toLowerCase()) return false;
-    if (workTypeFilter !== 'All' && (o.orderType || '').toLowerCase() !== workTypeFilter.toLowerCase()) return false;
 
     return true;
   });
@@ -614,7 +643,7 @@ export default function App() {
                                     }`}
                                   >
                                     <option value="Under Process">Under Process</option>
-                                    <option value="Ready but bill pending">Ready but Bill Pending</option>
+                                    <option value="Ready but bill pending">Ready but bill pending</option>
                                     <option value="Packed">Packed</option>
                                   </select>
                                 ) : (
@@ -678,7 +707,6 @@ export default function App() {
               </div>
 
               <form onSubmit={handleSubmitOrder} className="space-y-6">
-                {/* Photo Section */}
                 <div className="text-center bg-[#0b0f19] p-4 rounded-xl border border-slate-800 space-y-3">
                   <label className="text-xs font-semibold text-amber-300 block">Product Photo (Saved to Google Drive)</label>
                   {isCapturing ? (
@@ -707,7 +735,6 @@ export default function App() {
                   )}
                 </div>
 
-                {/* Main Item Intake Fields */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                   <div>
                     <label className="text-[11px] text-slate-400 font-semibold">Order Sheet Number *</label>
